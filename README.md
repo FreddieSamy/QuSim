@@ -1,2 +1,2 @@
-# QuanSim
+# QuSim
 Quantum Computing Simulator
