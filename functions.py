@@ -394,6 +394,72 @@ class Circuit():
     #job_monitor(job)"""
 
 ###############################################################################################################################
+    
+    def singleQubitGates(self,circuit,column):
+        for i in range(len(column)):
+            if str(column[i])=="":
+                continue
+            pythonLine="circuit."+column[i]+"("
+            pythonLine+=str(i)
+            pythonLine+=")"
+            #print(pythonLine)
+            exec(pythonLine)
+
+
+###############################################################################################################################
+
+    def multiQubitGates(self,circuit,column):
+        c=[]
+        oc=[]
+        swap=[]
+        gates=[]
+        for i in range(len(column)):
+            if str(column[i])=="":
+                continue
+            
+            if str(column[i])=="c":
+                c.append(str(i))
+                
+            elif str(column[i])=="oc":
+                oc.append(str(i))
+                c.append(str(i))
+                
+            elif str(column[i])=="swap":
+                swap.append(i)
+                
+            else:
+                gates.append([column[i],str(i)])
+            
+        
+        for i in oc:
+            circuit.x(int(i))
+            
+        if len(c)==0 and len(oc)==0:         #swap and single gates
+            circuit.swap(swap[0],swap[1])
+            column[swap[0]]=""
+            column[swap[1]]=""
+            self.singleQubitGates(circuit,column)
+                
+        elif len(swap)==0:                   #controlled gates
+            cStr=",".join(c)
+            for i in gates:
+                pythonLine="circuit."+"c"*len(c)+i[0]+"("+cStr+","+i[1]+")"
+                #print(pythonLine)
+                exec(pythonLine)    
+        
+        else:                                #controlled swap and gates
+            circuit.cswap(int(c[0]),swap[0],swap[1])
+            for i in gates:
+                pythonLine="circuit.c"+i[0]+"("+c[0]+","+i[1]+")"
+                #print(pythonLine)
+                exec(pythonLine) 
+                
+        for i in oc:
+            circuit.x(int(i))
+            
+        
+###############################################################################################################################
+
 
     #main function
     #takes json object that represent a circuit
@@ -405,10 +471,8 @@ class Circuit():
     #to run a circuit on IBMQ , "API_TOKEN" must be sent 
     #to initialize the circuit , "init" must be sent as a vector ( i.e. [0,1,"+","-","i","-i"] )
     
-    def createCircuit(self,receivedDictionary):
+    def createCircuit(self,circuit,receivedDictionary):
         
-        from qiskit import QuantumCircuit
-
         shots=1024
         returnedDictionary={}
     
@@ -418,21 +482,17 @@ class Circuit():
         if "cols" in receivedDictionary:
             matrix=receivedDictionary["cols"]
             columns=len(matrix)
-            wires=len(matrix[0])
-            circuit=QuantumCircuit(wires)
         
             if "init" in receivedDictionary:
                 self.initState(circuit,receivedDictionary["init"])
     
             for i in range(columns): #number of columns 
-                for j in range(wires):      #number of quantum wires
-                    if str(matrix[i][j])=='1':
-                        continue
-                    pythonLine="circuit."+matrix[i][j]+"("
-                    pythonLine+=str(j)
-                    pythonLine+=")"
-                    #print(pythonLine)
-                    exec(pythonLine)
+                if "swap" in matrix[i] or "c" in matrix[i] or "oc" in matrix[i]:
+                    self.multiQubitGates(circuit,matrix[i])
+                elif "barrier" in matrix[i]:
+                    circuit.barrier()
+                else:
+                    self.singleQubitGates(circuit,matrix[i])
         
             circuit.measure_all()
         
@@ -464,29 +524,29 @@ class Circuit():
         return returnedDictionary
 
     #testing
-    #from qiskit import *
+    #from qiskit import circuit
 
     #run on simulator
-    """createCircuit({"cols":[["1","h","1","1","1","1"],
-                           ["1","x","1","1","1","1"],
-                           ["1","y","1","1","1","1"],
-                           ["1","z","1","1","1","1"],
-                           ["1","s","1","1","1","1"],
-                           ["1","sdg","1","1","1","1"],
-                           ["1","t","1","1","1","1"],
-                           ["1","tdg","1","1","1","1"]],
+    """createCircuit({"cols":[["","h","","","",""],
+                           ["","x","","","",""],
+                           ["","y","","","",""],
+                           ["","z","","","",""],
+                           ["","s","","","",""],
+                           ["","sdg","","","",""],
+                           ["","t","","","",""],
+                           ["","tdg","","","",""]],
                   "init":[0,1,"+","-","i","-i"],
                   "shots":1024*2})"""
 
     """#run on IBMQ
-    createCircuit({"cols":[["1","h","1","1","1","1"],
-                           ["1","x","1","1","1","1"],
-                           ["1","y","1","1","1","1"],
-                           ["1","z","1","1","1","1"],
-                           ["1","s","1","1","1","1"],
-                           ["1","sdg","1","1","1","1"],
-                           ["1","t","1","1","1","1"],
-                           ["1","tdg","1","1","1","1"]],
+    createCircuit({"cols":[["","h","","","",""],
+                           ["","x","","","",""],
+                           ["","y","","","",""],
+                           ["","z","","","",""],
+                           ["","s","","","",""],
+                           ["","sdg","","","",""],
+                           ["","t","","","",""],
+                           ["","tdg","","","",""]],
                   "init":[0,1,"+","-","i","-i"],
                   "shots":1024*2,
                   "API_TOKEN":""})"""
