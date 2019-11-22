@@ -217,7 +217,7 @@ class Circuit():
     #displays matrix with mathimatical format
     
     def matrixLatex(self,matrix):
-        from IPython.display import display, Markdown, Latex
+        from IPython.display import display, Markdown
         gate_latex = '\\begin{pmatrix}'
         for line in matrix:
             for element in line:
@@ -257,7 +257,7 @@ class Circuit():
         backend = Aer.get_backend('unitary_simulator')
         gate = execute(temp,backend).result().get_unitary()
 
-        from IPython.display import display, Markdown, Latex
+        from IPython.display import display, Markdown
         gate_latex = '\\begin{pmatrix}'
         for line in gate:
             for element in line:
@@ -395,10 +395,21 @@ class Circuit():
 
 ###############################################################################################################################
     
-    def singleQubitGates(self,circuit,column):
+    def singleQubitGates(self,circuit,column,customGates):
         for i in range(len(column)):
             if str(column[i])=="":
                 continue
+            if str(column[i])[:7]=="custom_":
+                if customGates==None:
+                    print("send custom gates")
+                else:
+                    gateName=str(column[i])[7:]
+                    if len(customGates[gateName])==2:
+                        self.addCustomGate(circuit,customGates[gateName],[i])
+                        continue
+                    else:
+                        self.multiQubitGates(circuit,column,customGates)
+                        continue
             pythonLine="circuit."+column[i]+"("
             pythonLine+=str(i)
             pythonLine+=")"
@@ -408,11 +419,12 @@ class Circuit():
 
 ###############################################################################################################################
 
-    def multiQubitGates(self,circuit,column):
+    def multiQubitGates(self,circuit,column,customGates):
         c=[]
         oc=[]
         swap=[]
-        gates=[]
+        controlledGates=[]
+        customPos={}
         for i in range(len(column)):
             if str(column[i])=="":
                 continue
@@ -427,35 +439,58 @@ class Circuit():
             elif str(column[i])=="swap":
                 swap.append(i)
                 
+            elif str(column[i])[:7]=="custom_" :
+                gateName=str(column[i])[7:]
+                if customGates==None:
+                    print("send custom gates")
+                else:
+                    if gateName in customPos.keys():
+                        customPos[gateName].append(i)
+                    else:
+                        customPos[gateName]=[i]
+                
             else:
-                gates.append([column[i],str(i)])
+                controlledGates.append([column[i],str(i)])
             
         
-        for i in oc:
-            circuit.x(int(i))
+        if len(c)==0:
             
-        if len(c)==0 and len(oc)==0:         #swap and single gates
-            circuit.swap(swap[0],swap[1])
-            column[swap[0]]=""
-            column[swap[1]]=""
-            self.singleQubitGates(circuit,column)
+            if len(swap)!=0:                                  #swap
+                circuit.swap(swap[0],swap[1])
+                column[swap[0]]=""
+                column[swap[1]]=""
+            
+            if len(customPos)!=0:                             #custom gates
+                for i in customPos:
+                    print(customGates[i],customPos[i])
+                    self.addCustomGate(circuit,customGates[i],customPos[i])
+                    for j in customPos[i]:
+                        column[j]=""
                 
-        elif len(swap)==0:                   #controlled gates
+            self.singleQubitGates(circuit,column,customGates)
+            
+        else:
+            
+        
+            for i in oc:                                       #open control 
+                circuit.x(int(i))
+            
+            if len(swap)!=0:                                   #cswap
+                circuit.cswap(int(c[0]),swap[0],swap[1])
+             
+            ##if len(customPos)!=0:                            #controlled custom gates
+            ## what should we do ?!!
+                
+                                                               #controlled gates
             cStr=",".join(c)
-            for i in gates:
+            for i in controlledGates:
                 pythonLine="circuit."+"c"*len(c)+i[0]+"("+cStr+","+i[1]+")"
                 #print(pythonLine)
                 exec(pythonLine)    
         
-        else:                                #controlled swap and gates
-            circuit.cswap(int(c[0]),swap[0],swap[1])
-            for i in gates:
-                pythonLine="circuit.c"+i[0]+"("+c[0]+","+i[1]+")"
-                #print(pythonLine)
-                exec(pythonLine) 
                 
-        for i in oc:
-            circuit.x(int(i))
+            for i in oc:                                        #open control 
+                circuit.x(int(i))
             
         
 ###############################################################################################################################
@@ -475,9 +510,13 @@ class Circuit():
         
         shots=1024
         returnedDictionary={}
+        customGates=None
     
         if "shots" in receivedDictionary:
             shots=receivedDictionary["shots"]
+            
+        if "custom" in receivedDictionary:
+            customGates=receivedDictionary["custom"]
         
         if "cols" in receivedDictionary:
             matrix=receivedDictionary["cols"]
@@ -488,11 +527,11 @@ class Circuit():
     
             for i in range(columns): #number of columns 
                 if "swap" in matrix[i] or "c" in matrix[i] or "oc" in matrix[i]:
-                    self.multiQubitGates(circuit,matrix[i])
+                    self.multiQubitGates(circuit,matrix[i],customGates)
                 elif "barrier" in matrix[i]:
                     circuit.barrier()
                 else:
-                    self.singleQubitGates(circuit,matrix[i])
+                    self.singleQubitGates(circuit,matrix[i],customGates)
         
             circuit.measure_all()
         
@@ -527,29 +566,82 @@ class Circuit():
     #from qiskit import circuit
 
     #run on simulator
-    """createCircuit({"cols":[["","h","","","",""],
-                           ["","x","","","",""],
-                           ["","y","","","",""],
-                           ["","z","","","",""],
-                           ["","s","","","",""],
-                           ["","sdg","","","",""],
-                           ["","t","","","",""],
-                           ["","tdg","","","",""]],
-                  "init":[0,1,"+","-","i","-i"],
-                  "shots":1024*2})"""
+    """dic={
+     "wires":6,
+     "cols":[["h"],
+             ["x"],
+             ["y"],
+             ["z"],
+             ["s"],
+             ["sdg"],
+             ["t"],
+             ["tdg"],
+             ["barrier"],
+             ["","c","h"],
+             ["","c","x"],
+             ["","c","y"],
+             ["","c","z"],
+             ["","oc","h"],
+             ["","oc","x"],
+             ["","oc","y"],
+             ["","oc","z"],
+             ["","swap","swap"],
+             ["barrier"],
+             ["","","","c","c","x"],
+             ["","","","c","swap","swap"],
+             ["","","","oc","oc","x"],
+             ["","","","oc","swap","swap"],
+             ["barrier"],
+             ["","","","","","custom_not"],
+             ["","","","custom_I4","","custom_I4"]],
+     "init":[0,1,"+","-","i","-i"],
+     "shots":2048,
+     "custom":{
+               "not":[[0,1],[1,0]],
+               "I4":[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+               }
+     }
+     
+    createCircuit(dic)"""
 
-    """#run on IBMQ
-    createCircuit({"cols":[["","h","","","",""],
-                           ["","x","","","",""],
-                           ["","y","","","",""],
-                           ["","z","","","",""],
-                           ["","s","","","",""],
-                           ["","sdg","","","",""],
-                           ["","t","","","",""],
-                           ["","tdg","","","",""]],
-                  "init":[0,1,"+","-","i","-i"],
-                  "shots":1024*2,
-                  "API_TOKEN":""})"""
+    #run on IBMQ
+    """dic={
+     "wires":6,
+     "cols":[["h"],
+             ["x"],
+             ["y"],
+             ["z"],
+             ["s"],
+             ["sdg"],
+             ["t"],
+             ["tdg"],
+             ["barrier"],
+             ["","c","h"],
+             ["","c","x"],
+             ["","c","y"],
+             ["","c","z"],
+             ["","oc","h"],
+             ["","oc","x"],
+             ["","oc","y"],
+             ["","oc","z"],
+             ["","swap","swap"],
+             ["barrier"],
+             ["","","","c","c","x"],
+             ["","","","c","swap","swap"],
+             ["","","","oc","oc","x"],
+             ["","","","oc","swap","swap"],
+             ["barrier"],
+             ["","","","","","custom_not"],
+             ["","","","custom_I4","","custom_I4"]],
+     "init":[0,1,"+","-","i","-i"],
+     "shots":2048,
+     "custom":{
+               "not":[[0,1],[1,0]],
+               "I4":[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+               }
+     }
+    
+    createCircuit(dic)"""
     
 ###############################################################################################################################
 
