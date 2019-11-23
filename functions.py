@@ -462,7 +462,7 @@ class Circuit():
             
             if len(customPos)!=0:                             #custom gates
                 for i in customPos:
-                    print(customGates[i],customPos[i])
+                    #print(customGates[i],customPos[i])
                     self.addCustomGate(circuit,customGates[i],customPos[i])
                     for j in customPos[i]:
                         column[j]=""
@@ -517,8 +517,11 @@ class Circuit():
             
         if "custom" in receivedDictionary:
             customGates=receivedDictionary["custom"]
+            
+        if "qasm" in receivedDictionary:
+            circuit=circuit.from_qasm_str(receivedDictionary["qasm"])
         
-        if "cols" in receivedDictionary:
+        elif "cols" in receivedDictionary:
             matrix=receivedDictionary["cols"]
             columns=len(matrix)
         
@@ -533,18 +536,18 @@ class Circuit():
                 else:
                     self.singleQubitGates(circuit,matrix[i],customGates)
         
-            circuit.measure_all()
+        circuit.measure_all()
         
-            #print(circuit)
+        print(circuit)
         
-            if "API_TOKEN" in receivedDictionary:
-                job=self.runOnIBMQ(receivedDictionary["API_TOKEN"],circuit,shots)
+        if "API_TOKEN" in receivedDictionary:
+            job=self.runOnIBMQ(receivedDictionary["API_TOKEN"],circuit,shots)
             
-                returnedDictionary={"diracNotation":self.diracNotation(circuit),
-                                    "matrixRepresentation":self.matrixRepresentation(circuit),
-                                    "qasm":circuit.qasm(),
-                                    "link":"https://quantum-computing.ibm.com/results/"+job.job_id()
-                                   }
+            returnedDictionary={"diracNotation":self.diracNotation(circuit),
+                                "matrixRepresentation":self.matrixRepresentation(circuit),
+                                "qasm":circuit.qasm(),
+                                "link":"https://quantum-computing.ibm.com/results/"+job.job_id()
+                                  }
             
                 #we cannot get results until the job is completed
                 #from qiskit.tools.monitor import job_monitor
@@ -552,13 +555,13 @@ class Circuit():
                 #result=job.result()
                 #result.get_counts(circuit)
         
-            else:
-                returnedDictionary={"diracNotation":self.diracNotation(circuit),
-                                    "matrixRepresentation":self.matrixRepresentation(circuit),
-                                    "qasm":circuit.qasm(),
-                                    "graphData":self.graphData(circuit,shots),
-                                    "shots":shots
-                                   }
+        else:
+            returnedDictionary={"diracNotation":self.diracNotation(circuit),
+                                "matrixRepresentation":self.matrixRepresentation(circuit),
+                                "qasm":circuit.qasm(),
+                                "graphData":self.graphData(circuit,shots),
+                                "shots":shots
+                                  }
     
         return returnedDictionary
 
@@ -644,7 +647,7 @@ class Circuit():
     createCircuit(dic)"""
     
 ###############################################################################################################################
-
+        
 ###############################################################################################################################
 
 ###############################################################################################################################

@@ -1,3 +1,6 @@
+from datetime import datetime
+startTime = datetime.now()
+
 from functions import Circuit
 from qiskit import QuantumCircuit
 
@@ -37,11 +40,23 @@ dic={
                "I4":[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
                }
      }
+     
+dic={"qasm":'OPENQASM 2.0;include "qelib1.inc";qreg q1[2];creg c1[2];x q1[0];cx q1[0],q1[1];measure q1[0] -> c1[0];measure q1[1] -> c1[1];'}
 
-if "cols" in dic and "wires" in dic:    
+
+if "qasm" in dic:
+    circuit=QuantumCircuit(1)
+    c=Circuit()
+    print(c.createCircuit(circuit,dic))
+    print(circuit)
+
+elif ("cols" in dic and "wires" in dic) :
     circuit=QuantumCircuit(dic["wires"])
     #circuit.cswap(0,1,2)
     c=Circuit()
     
     print(c.createCircuit(circuit,dic))
-    print(circuit)
+    
+
+#print(startTime)
+print(datetime.now() - startTime)
